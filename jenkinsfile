@@ -1,0 +1,34 @@
+pipeline {
+    agent any
+
+    options {
+        timestamps()
+    }
+
+    stages {
+        stage('Clone apijs.org') {
+            steps {
+                checkout changelog: false, poll: false, scm: [$class: 'GitSCM', branches: [[name: '*/master']], doGenerateSubmoduleConfigurations: false, extensions: [[$class: 'CloneOption', noTags: true, reference: '', shallow: false], [$class: 'RelativeTargetDirectory', relativeTargetDir: 'dist']], submoduleCfg: [], userRemoteConfigs: [[credentialsId: 'shangxianapp-github-xuexb-ssh-key', url: 'git@github.com:apijs/apijs.org.git']]]
+            }
+        }
+
+        stage('Sync html') {
+            steps {
+                sshPublisher(publishers: [sshPublisherDesc(configName: 'sg02', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: 'echo "sync success"', execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: "$WWWROOT_DIR/apijs.org", remoteDirectorySDF: false, removePrefix: 'dist', sourceFiles: 'dist/**/*')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: true)])
+            }
+        }
+
+        stage('Reload nginx') {
+            steps {
+                sh "mv nginx.conf apijs.org.conf"
+                sshPublisher(publishers: [sshPublisherDesc(configName: 'sg02', transfers: [sshTransfer(cleanRemote: false, excludes: '', execCommand: "/bin/sh $DOCKER_NGINX_DIR/reload.sh", execTimeout: 120000, flatten: false, makeEmptyDirs: false, noDefaultExcludes: false, patternSeparator: '[, ]+', remoteDirectory: "$DOCKER_NGINX_VHOST_DIR", remoteDirectorySDF: false, removePrefix: '', sourceFiles: 'apijs.org.conf')], usePromotionTimestamp: false, useWorkspaceInPromotion: false, verbose: true)])
+            }
+        }
+    }
+
+    post {
+        always {
+            deleteDir()
+        }
+    }
+}
